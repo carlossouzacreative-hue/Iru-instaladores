@@ -1,0 +1,33 @@
+# Copia o instalador do Iru do site para as Releases deste repositório (download rápido pelo GitHub).
+# Não precisa de token: usa a permissão do próprio repositório. Confere o SHA-256 que o servidor do Iru publica.
+name: Espelho do instalador
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: espelho
+  cancel-in-progress: false
+jobs:
+  copiar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Copiar instalador novo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SITE: https://gluglutelas.website
+        run: |
+          set -euo pipefail
+          INFO=$(curl -fsS "$SITE/api/download/desktop-app/version")
+          V=$(echo "$INFO" | jq -r '.installer.version // empty')
+          NOME=$(echo "$INFO" | jq -r '.installer.name // empty')
+          SHA=$(echo "$INFO" | jq -r '.installer.sha256 // empty')
+          if [ -z "$V" ] || [ -z "$NOME" ] || [ -z "$SHA" ]; then echo "Nenhum instalador publicado no site."; exit 0; fi
+          case "$NOME" in GlugluCall-beta-*-Setup.exe) ;; *) echo "Nome inesperado: $NOME"; exit 1;; esac
+          if gh release view "$V" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "beta $V já está aqui."; exit 0; fi
+          curl -fsSL -o "$NOME" "$SITE/api/download/desktop-app"
+          echo "$SHA  $NOME" | sha256sum -c -
+          gh release create "$V" "$NOME" -R "$GITHUB_REPOSITORY" --title "Iru beta $V" --notes "Instalador do Iru beta $V para Windows." --latest
