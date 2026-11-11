@@ -3,7 +3,7 @@
 name: Espelho do instalador
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '7,17,27,37,47,57 * * * *' # fora do minuto cheio (o GitHub atrasa/pula agendamentos no :00)
   workflow_dispatch:
 permissions:
   contents: write
@@ -28,6 +28,7 @@ jobs:
           if [ -z "$V" ] || [ -z "$NOME" ] || [ -z "$SHA" ]; then echo "Nenhum instalador publicado no site."; exit 0; fi
           case "$NOME" in GlugluCall-beta-*-Setup.exe) ;; *) echo "Nome inesperado: $NOME"; exit 1;; esac
           if gh release view "$V" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "beta $V já está aqui."; exit 0; fi
-          curl -fsSL -o "$NOME" "$SITE/api/download/desktop-app"
+          # conexão longa pelo túnel às vezes cai no meio: tenta de novo e continua de onde parou
+          curl -fsSL --http1.1 --retry 8 --retry-all-errors --retry-delay 5 -C - -o "$NOME" "$SITE/api/download/desktop-app"
           echo "$SHA  $NOME" | sha256sum -c -
           gh release create "$V" "$NOME" -R "$GITHUB_REPOSITORY" --title "Iru beta $V" --notes "Instalador do Iru beta $V para Windows." --latest
